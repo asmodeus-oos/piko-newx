@@ -15,14 +15,26 @@
  *     opaque container color (GlassStyle.b) and a null modifier — which is why
  *     it never matched the liquid-glass bottom bar. We replace the container
  *     color with the DIM-palette tint the bar's glass uses
- *     (com.x.xds.core.a.a @ 0.75 alpha, exactly per com.x.compose.core.f0.a)
- *     and attach the bar's glass modifier (f0.a) with the composition-scoped
- *     HazeState (dev.chrisbanes.haze.d.j).
+ *     (com.x.xds.core.a.a @ 0.75 alpha, exactly per com.x.compose.core.f0.a),
+ *     attach the bar's glass modifier (f0.a) with the composition-scoped
+ *     HazeState (dev.chrisbanes.haze.d.j), attach a 1.0dp outline border
+ *     (com.x.compose.theme.b.h), and set dynamic on-surface content color
+ *     (com.x.compose.theme.b.c) so inner icons/shapes are visible in light mode.
+ *     Also clears bit 1 (0x2) of defaultMask (0x60) so Compose preserves our modifier.
+ *
+ *  3) NewX: Liquid glass new posts pill
+ *     The floating "new posts" pill that pops up when scrolling timelines is
+ *     rendered by com.x.urt.instructions.n.a (tag "ntp") with an opaque Twitter
+ *     blue background (u1.g) and hardcoded white text/icon (u1.B1). We transform
+ *     it into liquid glass with DIM translucent tint, Haze blur, 1.0dp outline
+ *     border, and adaptive on-surface text/icon color.
  */
 package app.crimera.patches.newx.misc.liquidglass
 
 import app.morphe.patcher.extensions.InstructionExtensions.addInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
+import app.morphe.patcher.extensions.InstructionExtensions.removeInstruction
+import app.morphe.patcher.extensions.InstructionExtensions.removeInstructions
 import app.morphe.patcher.patch.AppTarget
 import app.morphe.patcher.patch.ApkFileType
 import app.morphe.patcher.patch.BytecodePatchContext
@@ -33,11 +45,11 @@ import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.builder.MutableMethodImplementation
 import com.android.tools.smali.dexlib2.iface.ClassDef
+import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.Instruction
 import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.RegisterRangeInstruction
-import com.android.tools.smali.dexlib2.iface.instruction.TwoRegisterInstruction
 
 // Mirrors app.crimera.patches.newx.utils.Constants.COMPATIBILITY_NEW_X (internal there)
 private val COMPATIBILITY_NEW_X =
@@ -85,10 +97,24 @@ private const val FAB_SURFACE_CALL = "Landroidx/compose/material3/p6;->a("
 private const val THEME_PROVIDER =
     "Lcom/google/android/gms/dynamite/e;->F(Landroidx/compose/runtime/Composer;I)Lcom/x/compose/theme/b;"
 
-private const val THEME_OUTLINE_FIELD = "Lcom/x/compose/theme/b;->r:J"
+private const val THEME_CONTENT_FIELD = "Lcom/x/compose/theme/b;->c:J"
+
+private const val THEME_DIVIDER_FIELD = "Lcom/x/compose/theme/b;->h:J"
 
 private const val BORDER_MODIFIER =
     "Landroidx/compose/foundation/p;->k(Landroidx/compose/ui/Modifier;FJLandroidx/compose/ui/graphics/c1;)Landroidx/compose/ui/Modifier;"
+
+private const val BACKGROUND_MODIFIER =
+    "Landroidx/compose/foundation/p;->h(Landroidx/compose/ui/Modifier;JLandroidx/compose/ui/graphics/c1;)Landroidx/compose/ui/Modifier;"
+
+private const val CIRCLE_SHAPE_FIELD =
+    "Landroidx/compose/foundation/shape/i;->a:Landroidx/compose/foundation/shape/h;"
+
+private const val NEW_POSTS_TAG = "ntp"
+
+private const val TWITTER_BLUE_FIELD = "Lcom/x/compose/core/u1;->g:J"
+
+private const val WHITE_COLOR_FIELD = "Lcom/x/compose/core/u1;->B1:J"
 
 private fun Instruction.isConstString(value: String): Boolean =
     (this is ReferenceInstruction) &&
@@ -159,7 +185,7 @@ val liquidGlassComposeButtonPatch = bytecodePatch(
     name = "NewX: Liquid glass compose button",
     description =
         "Gives the timeline and chat tab compose buttons (FAB) the same liquid-glass material, " +
-            "subtle outline border, and DIM-palette tint as the bottom navigation bar.",
+            "subtle outline border, adaptive icon/shape color, and DIM-palette tint as the bottom navigation bar.",
     default = true,
 ) {
     compatibleWith(COMPATIBILITY_NEW_X)
@@ -197,6 +223,8 @@ val liquidGlassComposeButtonPatch = bytecodePatch(
                 val vShape = a + 2
                 val vColor = a + 3
                 val vColorHigh = a + 4
+                val vContent = a + 5
+                val vContentHigh = a + 6
                 val vElev = a + 7
                 val vComp = a + 9
                 val vInt1 = a + 10
@@ -220,13 +248,14 @@ val liquidGlassComposeButtonPatch = bytecodePatch(
                     const/4 v$vElev, 0x0
                     invoke-static {v$vComp, v$vElev}, $THEME_PROVIDER
                     move-result-object v$vElev
-                    iget-wide v$vInt1, v$vElev, $THEME_OUTLINE_FIELD
+                    iget-wide v$vContent, v$vElev, $THEME_CONTENT_FIELD
+                    iget-wide v$vInt1, v$vElev, $THEME_DIVIDER_FIELD
                     const/high16 v$vElev, 0x3f800000
                     invoke-static {v$vMod, v$vElev, v$vInt1, v$vInt2, v$vShape}, $BORDER_MODIFIER
                     move-result-object v$vMod
                     const/4 v$vElev, 0x0
                     const/high16 v$vInt1, 0xc00000
-                    const/16 v$vInt2, 0x62""".trimIndent()
+                    const/16 v$vInt2, 0x60""".trimIndent()
 
                 method.addInstructions(surfaceCallIdx, glassInjection)
                 totalPatched++
@@ -240,3 +269,103 @@ val liquidGlassComposeButtonPatch = bytecodePatch(
     }
 }
 
+@Suppress("unused")
+val liquidGlassNewPostsPillPatch = bytecodePatch(
+    name = "NewX: Liquid glass new posts pill",
+    description =
+        "Gives the floating new posts pill (which pops up while scrolling) the same liquid-glass material, " +
+            "subtle outline border, and adaptive icon/text color as the bottom navigation bar.",
+    default = true,
+) {
+    compatibleWith(COMPATIBILITY_NEW_X)
+
+    execute {
+        val sites = methodsContainingString(NEW_POSTS_TAG)
+        if (sites.isEmpty()) {
+            throw PatchException("New posts pill renderer with tag \"$NEW_POSTS_TAG\" not found — app version may be incompatible")
+        }
+
+        var totalPatched = 0
+        for ((classDef, method) in sites) {
+            val impl = method.implementation as MutableMethodImplementation
+            val instructions = impl.instructions
+
+            // Find Composer register from call to e->P(Composer, I) or fallback to 13
+            val compReg = instructions.mapNotNull { ins ->
+                if (ins.opcode == Opcode.INVOKE_STATIC && (ins as? ReferenceInstruction)?.reference.toString().startsWith("Lcom/google/android/gms/dynamite/e;->P(")) {
+                    (ins as? FiveRegisterInstruction)?.registerC
+                } else null
+            }.firstOrNull() ?: 13
+
+            // Find sget-wide of white color u1.B1 (icon and text color)
+            val whiteSgets = instructions.withIndex().filter { (_, ins) ->
+                ins.opcode == Opcode.SGET_WIDE &&
+                    (ins as? ReferenceInstruction)?.reference.toString() == WHITE_COLOR_FIELD
+            }.map { (idx, ins) -> idx to (ins as OneRegisterInstruction).registerA }
+
+            // Find sget-wide of Twitter blue followed by Modifier.background(p.h)
+            val blueBgSites = instructions.withIndex().filter { (idx, ins) ->
+                ins.opcode == Opcode.SGET_WIDE &&
+                    (ins as? ReferenceInstruction)?.reference.toString() == TWITTER_BLUE_FIELD &&
+                    idx + 1 < instructions.size &&
+                    instructions[idx + 1].opcode == Opcode.INVOKE_STATIC &&
+                    (instructions[idx + 1] as? ReferenceInstruction)?.reference.toString().startsWith("Landroidx/compose/foundation/p;->h(")
+            }.map { it.index }
+
+            if (blueBgSites.isEmpty()) continue
+
+            // Patch in reverse order:
+            // 1. Text & icon color sites (later in method)
+            for ((idx, reg) in whiteSgets.asReversed()) {
+                val colorInjection =
+                    """const/4 v$reg, 0x0
+                    invoke-static {v$compReg, v$reg}, $THEME_PROVIDER
+                    move-result-object v$reg
+                    iget-wide v$reg, v$reg, $THEME_CONTENT_FIELD""".trimIndent()
+                method.removeInstruction(idx)
+                method.addInstructions(idx, colorInjection)
+                println("[liquid-glass] adapted new posts pill content color at index $idx (reg v$reg) to theme on-surface in ${classDef.type}::${method.name}")
+            }
+
+            // 2. Background + Haze + Border site (earlier in method)
+            for (blueSgetIdx in blueBgSites.asReversed()) {
+                // blueSgetIdx: sget-wide v14, u1.g
+                // blueSgetIdx + 1: invoke-static {v3, v14, v15, v8}, p;->h
+                // Replace both with liquid glass injection:
+                val pillGlassInjection =
+                    """const/4 v7, 0x0
+                    invoke-static {v$compReg, v7}, $GLASS_STYLE_PROVIDER
+                    move-result-object v7
+                    iget-wide v14, v7, $DIM_PALETTE_FIELD
+                    const/high16 v7, 0x3f400000
+                    invoke-static {v14, v15, v7}, $COLOR_TRANSLUCENT
+                    move-result-wide v14
+                    sget-object v7, $CIRCLE_SHAPE_FIELD
+                    invoke-static {v3, v14, v15, v7}, $BACKGROUND_MODIFIER
+                    move-result-object v3
+                    invoke-static {v$compReg}, $HAZE_STATE_COMPOSABLE
+                    move-result-object v7
+                    const/4 v14, 0x1
+                    const/4 v15, 0x0
+                    invoke-static {v3, v7, v14, v$compReg, v15}, $GLASS_MODIFIER
+                    move-result-object v3
+                    const/4 v7, 0x0
+                    invoke-static {v$compReg, v7}, $THEME_PROVIDER
+                    move-result-object v7
+                    iget-wide v14, v7, $THEME_DIVIDER_FIELD
+                    sget-object v7, $CIRCLE_SHAPE_FIELD
+                    const/high16 v8, 0x3f800000
+                    invoke-static {v3, v8, v14, v15, v7}, $BORDER_MODIFIER""".trimIndent()
+
+                method.removeInstructions(blueSgetIdx, 2)
+                method.addInstructions(blueSgetIdx, pillGlassInjection)
+                totalPatched++
+                println("[liquid-glass] applied liquid glass + border to new posts pill at index $blueSgetIdx in ${classDef.type}::${method.name}")
+            }
+        }
+        if (totalPatched == 0) {
+            throw PatchException("Failed to patch new posts pill background call site")
+        }
+        println("[liquid-glass] applied glass + border to $totalPatched new posts pill call site(s)")
+    }
+}
