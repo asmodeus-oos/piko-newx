@@ -1,3 +1,51 @@
+## [3.26.3](https://github.com/asmodeus-oos/piko-newx/releases/tag/v3.26.3) (2026-09-17)
+
+### New Patches
+* **Twitter:** NewX: Remove ads
+* **Twitter:** NewX: Disable blur effects
+* **Twitter:** NewX: Restore Twitter branding
+* **Twitter:** NewX: Browse tweet object
+* **Twitter:** NewX: Open canonical URLs
+* **Twitter:** NewX: Custom font
+* **Twitter:** NewX: Custom sharing domain
+* **Twitter:** NewX: Customize drawer items
+* **Twitter:** NewX: Dynamic color
+* **Twitter:** NewX: Feature switch overrides
+* **Twitter:** NewX: Customize inline actions
+* **Twitter:** NewX: Inline download button
+* **Twitter:** NewX: Liquid glass chat
+* **Twitter:** NewX: Liquid glass compose button
+* **Twitter:** NewX: Force highest video/audio quality
+* **Twitter:** NewX: Set default media tab
+* **Twitter:** NewX: Customize navigation bar
+* **Twitter:** NewX: Hide post reply bar
+* **Twitter:** NewX: Customize post menu items
+* **Twitter:** NewX: Set default profile post sorting
+* **Twitter:** PUI theme icons
+* **Twitter:** NewX: Set default reply sorting
+* **Twitter:** NewX: Server error logging
+* **Twitter:** NewX: Share post as image
+* **Twitter:** NewX: Disable video player scrolling
+* **Twitter:** NewX: Hide premium upsell
+* **Twitter:** NewX: Unlock color customization
+* **Twitter:** NewX: Unlock downloads
+* **Twitter:** NewX: Customize timeline tabs
+* **Twitter:** NewX: Disable automatic timeline refresh
+* **Twitter:** NewX: Filter For You by topic
+* **Twitter:** NewX: Hide AI-generated posts
+* **Twitter:** NewX: Hide Discover more
+* **Twitter:** NewX: Hide compose button
+* **Twitter:** NewX: Hide new posts pill
+* **Twitter:** NewX: Hide post dividers
+* **Twitter:** NewX: Hide Spaces bar
+* **Twitter:** NewX: Hide timeline tabs bar
+* **Twitter:** NewX: Hide who to follow
+* **Twitter:** NewX: Restore timeline position
+* **Twitter:** NewX: Show poll results
+* **Twitter:** NewX: Show sensitive media
+* **Twitter:** NewX: Hide posts by verified account type
+* **Twitter:** NewX: Filter posts by keyword
+
 ## [3.26.2](https://github.com/crimera/piko-newx/compare/v3.26.1...v3.26.2) (2026-09-17)
 
 ### 🐛 Bug Fixes
