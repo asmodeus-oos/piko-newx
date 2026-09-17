@@ -67,6 +67,18 @@ def pre_build_cleanup(piko_directory: Path) -> None:
                     shutil.rmtree(matched)
 
 
+def apply_extra_patches(piko_directory: Path) -> None:
+    """Copy custom companion patches and resources into the Piko checkout."""
+    extra_dir = Path(__file__).resolve().parent / "patches_extra"
+    if extra_dir.exists():
+        for src_path in extra_dir.rglob("*"):
+            if src_path.is_file():
+                rel_path = src_path.relative_to(extra_dir)
+                dest_path = piko_directory / "patches" / rel_path
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src_path, dest_path)
+
+
 def set_project_version(piko_directory: Path, version: str) -> None:
     """Set the version only in the temporary Piko checkout used for a build."""
     properties_path = piko_directory / "gradle.properties"
@@ -114,6 +126,7 @@ def build_piko_patches(
         )
 
         pre_build_cleanup(piko_directory)
+        apply_extra_patches(piko_directory)
 
         if patch_version is not None:
             set_project_version(piko_directory, patch_version)

@@ -264,8 +264,9 @@ def should_publish(
     previous_release: github.GithubRelease | None,
     semantic_bump: bool,
     metadata: dict[str, str],
+    force: bool = False,
 ) -> bool:
-    if semantic_bump:
+    if force or semantic_bump or os.environ.get("FORCE_PATCH", "").lower() == "true":
         return True
 
     return has_release_content_changed(
@@ -277,6 +278,7 @@ def main(
     release_tag: str,
     semantic_bump: bool,
     generated_changelog: str = "",
+    force: bool = False,
 ) -> None:
     patch_version = validate_release_tag(release_tag)
 
@@ -290,7 +292,7 @@ def main(
     previous_release = github.get_last_build_version(REPO)
     metadata = read_release_metadata()
     if not should_publish(
-        app_version, piko_build, previous_release, semantic_bump, metadata
+        app_version, piko_build, previous_release, semantic_bump, metadata, force=force
     ):
         print("No semantic or release-content changes found")
         return
@@ -310,6 +312,7 @@ def manual(
     release_tag: str,
     semantic_bump: bool,
     generated_changelog: str = "",
+    force: bool = False,
 ) -> None:
     patch_version = validate_release_tag(release_tag)
     piko_build = build_piko_patches(patch_version=patch_version)
@@ -320,7 +323,7 @@ def manual(
     previous_release = github.get_last_build_version(REPO)
     metadata = read_release_metadata()
     if not should_publish(
-        version, piko_build, previous_release, semantic_bump, metadata
+        version, piko_build, previous_release, semantic_bump, metadata, force=force
     ):
         print("No semantic or release-content changes found")
         return
@@ -342,6 +345,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--semantic-bump", choices=("true", "false"), default="false"
     )
+    parser.add_argument("--force", action="store_true", default=False)
     parser.add_argument("--changelog-file", default=None)
     args = parser.parse_args()
 
@@ -356,6 +360,7 @@ if __name__ == "__main__":
             args.release_tag,
             semantic_bump,
             generated_changelog,
+            force=args.force,
         )
     else:
-        main(args.release_tag, semantic_bump, generated_changelog)
+        main(args.release_tag, semantic_bump, generated_changelog, force=args.force)

@@ -2,7 +2,7 @@ import re
 import subprocess
 
 
-XLITE_PATCH_NAME = re.compile(r"^Name:\s*(NewX:\s*.+?)\s*$", re.MULTILINE)
+XLITE_PATCH_NAME = re.compile(r"^Name:\s*((?:NewX:\s*|PUI\s*).+?)\s*$", re.MULTILINE)
 
 
 def get_xlite_patches(cli: str, patches: str) -> list[str]:

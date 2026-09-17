@@ -42,6 +42,7 @@ jobs:
         run: uv sync --frozen
 
       - name: Import GPG key
+        if: ${{ secrets.GPG_PRIVATE_KEY != '' }}
         uses: crazy-max/ghaction-import-gpg@v7
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
@@ -71,11 +72,13 @@ jobs:
       - name: Build and publish release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
           GRADLE_OPTS: -Dorg.gradle.caching=true
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           mkdir -p bins
           uv run main.py \
+            --force \
             --m 1 \
             --v "${{ github.event.inputs.version_input }}" \
             --release-tag "${{ steps.release_version.outputs.new_version }}" \

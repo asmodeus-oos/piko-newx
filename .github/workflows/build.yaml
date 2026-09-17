@@ -2,6 +2,9 @@ name: Release - Piko Lite
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.workflow }}
@@ -38,6 +41,7 @@ jobs:
         run: uv sync --frozen
 
       - name: Import GPG key
+        if: ${{ secrets.GPG_PRIVATE_KEY != '' }}
         uses: crazy-max/ghaction-import-gpg@v7
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
@@ -67,11 +71,13 @@ jobs:
       - name: Build and publish release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
           GRADLE_OPTS: -Dorg.gradle.caching=true
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           mkdir -p bins
           uv run main.py \
+            --force \
             --release-tag "${{ steps.release_version.outputs.new_version }}" \
             --semantic-bump "${{ steps.release_version.outputs.semantic_bump }}" \
             --changelog-file /tmp/release-changelog-output
