@@ -1,3 +1,7 @@
+## [3.26.4](https://github.com/asmodeus-oos/piko-newx/compare/v3.26.3...v3.26.4) (2026-09-17)
+
+* No new patches or commits.
+
 ## [3.26.3](https://github.com/asmodeus-oos/piko-newx/releases/tag/v3.26.3) (2026-09-17)
 
 ### New Patches
