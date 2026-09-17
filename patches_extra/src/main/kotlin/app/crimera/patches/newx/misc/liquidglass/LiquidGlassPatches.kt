@@ -36,6 +36,7 @@ import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.iface.instruction.Instruction
 import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
+import com.android.tools.smali.dexlib2.iface.instruction.RegisterRangeInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.TwoRegisterInstruction
 
 // Mirrors app.crimera.patches.newx.utils.Constants.COMPATIBILITY_NEW_X (internal there)
@@ -59,7 +60,10 @@ private val COMPATIBILITY_NEW_X =
 
 private const val GLASS_FLAG = "xchat_liquid_glass_convo_header_enabled"
 
-private const val FAB_CONTENT_CLASS = "Landroidx/compose/foundation/a0;"
+private val FAB_CONTENT_CLASSES = setOf(
+    "Landroidx/compose/foundation/a0;",
+    "Lcom/x/aitrend/p;",
+)
 
 private const val GLASS_STYLE_PROVIDER =
     "Lcom/google/android/gms/dynamite/e;->R(Landroidx/compose/runtime/Composer;I)Lcom/x/xds/core/a;"
@@ -77,6 +81,14 @@ private const val HAZE_STATE_COMPOSABLE =
     "Ldev/chrisbanes/haze/d;->j(Landroidx/compose/runtime/Composer;)Ldev/chrisbanes/haze/t;"
 
 private const val FAB_SURFACE_CALL = "Landroidx/compose/material3/p6;->a("
+
+private const val THEME_PROVIDER =
+    "Lcom/google/android/gms/dynamite/e;->F(Landroidx/compose/runtime/Composer;I)Lcom/x/compose/theme/b;"
+
+private const val THEME_OUTLINE_FIELD = "Lcom/x/compose/theme/b;->r:J"
+
+private const val BORDER_MODIFIER =
+    "Landroidx/compose/foundation/p;->k(Landroidx/compose/ui/Modifier;FJLandroidx/compose/ui/graphics/c1;)Landroidx/compose/ui/Modifier;"
 
 private fun Instruction.isConstString(value: String): Boolean =
     (this is ReferenceInstruction) &&
@@ -146,75 +158,85 @@ val liquidGlassChatPatch = bytecodePatch(
 val liquidGlassComposeButtonPatch = bytecodePatch(
     name = "NewX: Liquid glass compose button",
     description =
-        "Gives the timeline compose button (FAB) the same liquid-glass material and " +
-            "DIM-palette tint as the bottom navigation bar.",
+        "Gives the timeline and chat tab compose buttons (FAB) the same liquid-glass material, " +
+            "subtle outline border, and DIM-palette tint as the bottom navigation bar.",
     default = true,
 ) {
     compatibleWith(COMPATIBILITY_NEW_X)
 
     execute {
         val candidates = methodsContainingString("\$this\$AnimatedVisibility")
-            .filter { (classDef, _) -> classDef.type == FAB_CONTENT_CLASS }
+            .filter { (classDef, _) -> classDef.type in FAB_CONTENT_CLASSES }
         if (candidates.isEmpty()) {
-            throw PatchException("Compose button renderer $FAB_CONTENT_CLASS not found — app version may be incompatible")
+            throw PatchException("Compose button renderers $FAB_CONTENT_CLASSES not found — app version may be incompatible")
         }
 
-        var patched = false
+        var totalPatched = 0
         for ((classDef, method) in candidates) {
             val impl = method.implementation as MutableMethodImplementation
             val instructions = impl.instructions
 
-            // Anchor: the FAB pill block reads the glass style container color.
-            val colorReadIdx = instructions.indexOfFirst { ins ->
-                ins.opcode == Opcode.IGET_WIDE &&
-                    (ins as? ReferenceInstruction)?.reference.toString() == "Lcom/x/compose/theme/b;->b:J"
-            }
-            if (colorReadIdx < 0) continue
-
-            // The Surface call that consumes the color.
-            val surfaceCallIdx = instructions.withIndex()
-                .filter { it.index > colorReadIdx }
-                .firstOrNull { (_, ins) ->
+            val surfaceCallIndexes = instructions.withIndex().filter { (_, ins) ->
+                ins.opcode == Opcode.INVOKE_STATIC_RANGE &&
                     (ins as? ReferenceInstruction)?.reference.toString().startsWith(FAB_SURFACE_CALL)
+            }.map { it.index }
+
+            if (surfaceCallIndexes.isEmpty()) continue
+
+            // Patch in reverse order so instruction indexes remain stable
+            for (surfaceCallIdx in surfaceCallIndexes.asReversed()) {
+                val ins = instructions[surfaceCallIdx]
+                val rangeIns = ins as? RegisterRangeInstruction ?: continue
+                val a = rangeIns.startRegister
+                if (a + 11 > 15) {
+                    println("[liquid-glass] skipping call site at index $surfaceCallIdx in ${classDef.type}::${method.name}: startRegister $a + 11 > 15")
+                    continue
                 }
-                ?.index ?: continue
 
-            val colorReg = (instructions[colorReadIdx] as TwoRegisterInstruction).registerA
+                val vMod = a + 1
+                val vShape = a + 2
+                val vColor = a + 3
+                val vColorHigh = a + 4
+                val vElev = a + 7
+                val vComp = a + 9
+                val vInt1 = a + 10
+                val vInt2 = a + 11
 
-            // --- Insert A: translucent DIM color -> v(colorReg) ---
-            // Scratch: v1, v5, v6, v8 (all re-initialised by the original code below).
-            val insertA =
-                """const/4 v1, 0x0
-                invoke-static {v9, v1}, $GLASS_STYLE_PROVIDER
-                move-result-object v1
-                iget-wide v5, v1, $DIM_PALETTE_FIELD
-                const/high16 v8, 0x3f400000
-                invoke-static {v5, v6, v8}, $COLOR_TRANSLUCENT
-                move-result-wide v$colorReg"""
+                val glassInjection =
+                    """const/4 v$vMod, 0x0
+                    invoke-static {v$vComp, v$vMod}, $GLASS_STYLE_PROVIDER
+                    move-result-object v$vMod
+                    iget-wide v$vColor, v$vMod, $DIM_PALETTE_FIELD
+                    const/high16 v$vMod, 0x3f400000
+                    invoke-static {v$vColor, v$vColorHigh, v$vMod}, $COLOR_TRANSLUCENT
+                    move-result-wide v$vColor
+                    sget-object v$vMod, $EMPTY_MODIFIER
+                    invoke-static {v$vComp}, $HAZE_STATE_COMPOSABLE
+                    move-result-object v$vInt1
+                    const/4 v$vInt2, 0x1
+                    const/4 v$vElev, 0x0
+                    invoke-static {v$vMod, v$vInt1, v$vInt2, v$vComp, v$vElev}, $GLASS_MODIFIER
+                    move-result-object v$vMod
+                    const/4 v$vElev, 0x0
+                    invoke-static {v$vComp, v$vElev}, $THEME_PROVIDER
+                    move-result-object v$vElev
+                    iget-wide v$vInt1, v$vElev, $THEME_OUTLINE_FIELD
+                    const/high16 v$vElev, 0x3f800000
+                    invoke-static {v$vMod, v$vElev, v$vInt1, v$vInt2, v$vShape}, $BORDER_MODIFIER
+                    move-result-object v$vMod
+                    const/4 v$vElev, 0x0
+                    const/high16 v$vInt1, 0xc00000
+                    const/16 v$vInt2, 0x62""".trimIndent()
 
-            // --- Insert B: the bottom bar's glass modifier -> v1 (Modifier arg) ---
-            // Placed right before the Surface call; scratch v13/v14/v15 (dead params).
-            // f0.a(Modifier, HazeState, Z, Composer, I): force-enable via Z=true.
-            val insertB =
-                """sget-object v1, $EMPTY_MODIFIER
-                invoke-static {v9}, $HAZE_STATE_COMPOSABLE
-                move-result-object v13
-                const/4 v14, 0x1
-                const/4 v15, 0x0
-                invoke-static {v1, v13, v14, v9, v15}, $GLASS_MODIFIER
-                move-result-object v1"""
-
-            // Insert B at surfaceCallIdx FIRST (colorReadIdx is before surfaceCallIdx and unaffected)
-            method.addInstructions(surfaceCallIdx, insertB.trimIndent())
-            // Insert A right after colorReadIdx SECOND
-            method.addInstructions(colorReadIdx + 1, insertA.trimIndent())
-
-            println("[liquid-glass] applied glass to compose button in ${classDef.type}::${method.name}")
-            patched = true
-            break
+                method.addInstructions(surfaceCallIdx, glassInjection)
+                totalPatched++
+                println("[liquid-glass] applied glass + border to compose button at index $surfaceCallIdx (range v$a..v${a + 11}) in ${classDef.type}::${method.name}")
+            }
         }
-        if (!patched) {
+        if (totalPatched == 0) {
             throw PatchException("Compose button surface call site not found — app version may be incompatible")
         }
+        println("[liquid-glass] applied glass + border to $totalPatched compose button call site(s)")
     }
 }
+
