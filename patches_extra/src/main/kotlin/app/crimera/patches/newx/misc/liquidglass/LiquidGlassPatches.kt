@@ -35,6 +35,7 @@ import app.morphe.patcher.extensions.InstructionExtensions.addInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.extensions.InstructionExtensions.removeInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.removeInstructions
+import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
 import app.morphe.patcher.patch.AppTarget
 import app.morphe.patcher.patch.ApkFileType
 import app.morphe.patcher.patch.BytecodePatchContext
@@ -317,13 +318,12 @@ val liquidGlassNewPostsPillPatch = bytecodePatch(
             // Patch in reverse order:
             // 1. Text & icon color sites (later in method)
             for ((idx, reg) in whiteSgets.asReversed()) {
-                val colorInjection =
-                    """const/4 v$reg, 0x0
-                    invoke-static {v$compReg, v$reg}, $THEME_PROVIDER
+                val tail =
+                    """invoke-static {v$compReg, v$reg}, $THEME_PROVIDER
                     move-result-object v$reg
                     iget-wide v$reg, v$reg, $THEME_CONTENT_FIELD""".trimIndent()
-                method.removeInstruction(idx)
-                method.addInstructions(idx, colorInjection)
+                method.replaceInstruction(idx, "const/4 v$reg, 0x0")
+                method.addInstructions(idx + 1, tail)
                 println("[liquid-glass] adapted new posts pill content color at index $idx (reg v$reg) to theme on-surface in ${classDef.type}::${method.name}")
             }
 
