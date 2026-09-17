@@ -111,6 +111,9 @@ private const val BACKGROUND_MODIFIER =
 private const val CIRCLE_SHAPE_FIELD =
     "Landroidx/compose/foundation/shape/i;->a:Landroidx/compose/foundation/shape/h;"
 
+private const val COMPOSE_SET_DENSITY_FIELD =
+    "Landroidx/compose/ui/node/h;->f:Landroidx/compose/ui/node/f;"
+
 private const val NEW_POSTS_TAG = "ntp"
 
 private const val TWITTER_BLUE_FIELD = "Lcom/x/compose/core/u1;->g:J"
@@ -329,38 +332,42 @@ val liquidGlassNewPostsPillPatch = bytecodePatch(
 
             // 2. Background + Haze + Border site (earlier in method)
             for (blueSgetIdx in blueBgSites.asReversed()) {
-                // blueSgetIdx: sget-wide v14, u1.g
-                // blueSgetIdx + 1: invoke-static {v3, v14, v15, v8}, p;->h
-                // Replace both with liquid glass injection:
-                // IMPORTANT: Do NOT touch v7! In this method, v7 holds Landroidx/compose/ui/node/h;->f
-                // (ComposeUiNode.SetDensity Function2), which is passed to i->J later in the method.
-                // Overwriting v7 causes ClassCastException (Shape cannot be cast to Function2).
-                // Use safe scratch registers v18, v23, v25, v14/v15, and v8 (which already holds CircleShape).
+                // blueSgetIdx:     sget-wide v14, u1.g
+                // blueSgetIdx + 1: invoke-static {v3, v14, v15, v8, v0}, p;->h
+                // blueSgetIdx + 2: move-result-object v22
+                // Replace all 3 instructions with liquid glass injection:
+                // Note: v7 is used during injection as a low register (<= 15 required by invoke-static/const-4),
+                // and explicitly restored to ComposeUiNode.SetDensity (Function2) at the end.
+                // v14/v15 is also restored to Twitter blue (u1.g).
                 val tailInjection =
-                    """invoke-static {v$compReg, v18}, $GLASS_STYLE_PROVIDER
-                    move-result-object v18
-                    iget-wide v14, v18, $DIM_PALETTE_FIELD
-                    const/high16 v18, 0x3f400000
-                    invoke-static {v14, v15, v18}, $COLOR_TRANSLUCENT
+                    """invoke-static {v$compReg, v7}, $GLASS_STYLE_PROVIDER
+                    move-result-object v7
+                    iget-wide v14, v7, $DIM_PALETTE_FIELD
+                    const/high16 v7, 0x3f400000
+                    invoke-static {v14, v15, v7}, $COLOR_TRANSLUCENT
                     move-result-wide v14
-                    sget-object v8, $CIRCLE_SHAPE_FIELD
-                    invoke-static {v3, v14, v15, v8}, $BACKGROUND_MODIFIER
+                    sget-object v7, $CIRCLE_SHAPE_FIELD
+                    invoke-static {v3, v14, v15, v7}, $BACKGROUND_MODIFIER
                     move-result-object v3
                     invoke-static {v$compReg}, $HAZE_STATE_COMPOSABLE
-                    move-result-object v18
-                    const/4 v23, 0x1
-                    const/4 v25, 0x0
-                    invoke-static {v3, v18, v23, v$compReg, v25}, $GLASS_MODIFIER
+                    move-result-object v7
+                    const/4 v14, 0x1
+                    const/4 v15, 0x0
+                    invoke-static {v3, v7, v14, v$compReg, v15}, $GLASS_MODIFIER
                     move-result-object v3
-                    const/4 v18, 0x0
-                    invoke-static {v$compReg, v18}, $THEME_PROVIDER
-                    move-result-object v18
-                    iget-wide v14, v18, $THEME_DIVIDER_FIELD
-                    const/high16 v18, 0x3f800000
-                    invoke-static {v3, v18, v14, v15, v8}, $BORDER_MODIFIER""".trimIndent()
+                    const/4 v7, 0x0
+                    invoke-static {v$compReg, v7}, $THEME_PROVIDER
+                    move-result-object v7
+                    iget-wide v14, v7, $THEME_DIVIDER_FIELD
+                    sget-object v7, $CIRCLE_SHAPE_FIELD
+                    const/high16 v8, 0x3f800000
+                    invoke-static {v3, v8, v14, v15, v7}, $BORDER_MODIFIER
+                    move-result-object v22
+                    sget-object v7, $COMPOSE_SET_DENSITY_FIELD
+                    sget-wide v14, $TWITTER_BLUE_FIELD""".trimIndent()
 
-                method.replaceInstruction(blueSgetIdx, "const/4 v18, 0x0")
-                method.removeInstruction(blueSgetIdx + 1)
+                method.replaceInstruction(blueSgetIdx, "const/4 v7, 0x0")
+                method.removeInstructions(blueSgetIdx + 1, 2)
                 method.addInstructions(blueSgetIdx + 1, tailInjection)
                 totalPatched++
                 println("[liquid-glass] applied liquid glass + border to new posts pill at index $blueSgetIdx in ${classDef.type}::${method.name}")
